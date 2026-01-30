@@ -13,7 +13,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     {s : Set E} (hcv : Convex ℝ s) (hcm : IsCompact s) (hn : s.Nonempty) (f : C(s, s)) :
     ∃ x, Function.IsFixedPt f x := by
   choose ci hc h using fun M : ℕ ↦ @finite_cover_balls_of_compact _ _ _ hcm M.succ⁻¹ (by positivity)
-  have hz (M : ℕ) : ∃ z : s, dist (f z) z < (M.succ⁻¹ : ℝ) := by
+  have hz (M : ℕ) : ∃ z : s, dist (f z) z ≤ (M.succ⁻¹ : ℝ) := by
     let cs := (h M).1.toFinset
     let gs (c : cs) (x : E) : ℝ :=
       if dist c.1 x ≤ (M.succ⁻¹ : ℝ) then (M.succ⁻¹ : ℝ) - dist c.1 x else 0
@@ -28,8 +28,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     have hs's : s' ⊆ s := convexHull_min (by simp only [Set.Finite.coe_toFinset, hc, cs]) hcv
     let ι := Module.Basis.ofVectorSpaceIndex ℝ E₀
     let coord : E₀ →ₗ[ℝ] ι →₀ ℝ := (Module.Basis.ofVectorSpace ℝ E₀).1.1
-    -- let g (x : E) : E := (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1
-    let g (x : E) : E := sorry
+    let g (x : E) : E := (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1
     have hg : g '' s ⊆ s' := by
       have hgs_C (c : cs) : Continuous (gs c) := by
         sorry
@@ -50,10 +49,11 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
         simp only [Finset.univ_eq_attach, Subtype.coe_eta]
         rw [←Finset.sum_mul, mul_inv_cancel₀]
         positivity [hgs_sumpos x]
-      · sorry
-        -- simp only [Finset.univ_eq_attach, dite_smul, zero_smul,
-        -- Finset.sum_dite_of_true (s := cs) (by tauto), Subtype.coe_eta, w, g]
-        -- simp_rw [←smul_smul, ←Finset.smul_sum]
+      · classical simp only [Finset.univ_eq_attach, dite_smul, zero_smul,
+          Finset.sum_dite_of_true (s := cs) (by tauto), Subtype.coe_eta, w, g]
+        simp_rw [←smul_smul, ←Finset.smul_sum]
+    have hg_tends (x : s) : dist (g x) x ≤ (M.succ⁻¹ : ℝ) := by
+      sorry
     let g' (x : s₀') : s₀' := by
       use ⟨g (f ?x), hs'E₀ (hg ?m)⟩, hg ?m
       · use x, hs's x.2
@@ -74,9 +74,10 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
         · fun_prop
         · fun_prop
     use ⟨z, hs's <| Set.mem_setOf_eq ▸ hz⟩
-
-
-    sorry
+    simp [Function.IsFixedPt, g'] at hz_fixPt
+    conv => arg 1; arg 2; arg 1; rw [←hz_fixPt]
+    rw [dist_comm]
+    exact hg_tends (f ⟨z, hs's <| Set.mem_setOf_eq ▸ hz⟩)
   choose z hfz_z using hz
   have ⟨z0, hz0, j, hj, hlim⟩ := hcm.tendsto_subseq fun M ↦ (z M).2
   let z₀ : s := ⟨z0, hz0⟩
@@ -85,8 +86,8 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     apply tendsto_atTop_nhds.1 hlim (Metric.ball z₀ M.succ⁻¹)
     · apply Metric.mem_ball_self; positivity
     · simp
-  have hfzj_zj (M : ℕ) : dist (f (z (j M))) (z (j M)) < (M.succ⁻¹ : ℝ) := by calc
-    _ < ((j M).succ⁻¹ : ℝ) := hfz_z (j M)
+  have hfzj_zj (M : ℕ) : dist (f (z (j M))) (z (j M)) ≤ (M.succ⁻¹ : ℝ) := by calc
+    _ ≤ ((j M).succ⁻¹ : ℝ) := hfz_z (j M)
     _ ≤ (M.succ⁻¹ : ℝ) := by
       apply inv_anti₀
       · positivity
@@ -121,7 +122,6 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
   have hlim_fz₀ : Filter.atTop.Tendsto (f ∘ z ∘ j) (nhds (f z₀)) :=
     (f.2.tendsto z₀).comp (tendsto_subtype_rng.2 hlim)
   use z₀, tendsto_nhds_unique hlim_fz₀ hlim_z₀
-
 
 -- theorem convexHull_homeo_closedBall {E : Type*}
 --     [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
