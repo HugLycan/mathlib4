@@ -29,13 +29,13 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     let ι := Module.Basis.ofVectorSpaceIndex ℝ E₀
     let coord : E₀ →ₗ[ℝ] ι →₀ ℝ := (Module.Basis.ofVectorSpace ℝ E₀).1.1
     let g (x : E) : E := (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1
+    have hgs_C (c : cs) : Continuous (gs c) := by
+        sorry
+    have hgs_nonneg (c : cs) (x : E) : 0 ≤ gs c x := by
+      sorry
+    have hgs_sumpos (x : E) : 0 < ∑ c, gs c x := by
+      sorry
     have hg : g '' s ⊆ s' := by
-      have hgs_C (c : cs) : Continuous (gs c) := by
-        sorry
-      have hgs_nonneg (c : cs) (x : E) : 0 ≤ gs c x := by
-        sorry
-      have hgs_sumpos (x : E) : 0 < ∑ c, gs c x := by
-        sorry
       intro gx ⟨x, hx, hgx⟩
       rw [←hgx, Finset.mem_convexHull']
       classical let w (y : E) : ℝ := if hy : y ∈ cs then (∑ c, gs c x)⁻¹ * gs ⟨y, hy⟩ x else 0
@@ -58,9 +58,40 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
       use ⟨g (f ?x), hs'E₀ (hg ?m)⟩, hg ?m
       · use x, hs's x.2
       · use f ?x, (f ?x).2
-    have hg' (x : s) : dist (g x) x ≤ (M.succ⁻¹ : ℝ) := by
-      simp [g]
-      sorry
+    have hg' (x : s) : dist (g x) x ≤ (M.succ⁻¹ : ℝ) := by specialize hgs_sumpos x; calc
+      _ = ‖g x - x‖ := dist_eq_norm _ _
+      _ = ‖(∑ c, gs c x)⁻¹ • ∑ c, gs c x • (c.1 - x)‖ := by
+        have : x = (∑ c, gs c x)⁻¹ • ∑ c, gs c x • x.1 := by
+          rw [←Finset.sum_smul, inv_smul_smul₀]
+          positivity
+        rw [show g x - x = (∑ c, gs c x)⁻¹ • ∑ c, gs c x • (c.1 - x) by calc
+          _ = (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1 - x := by simp [g]
+          _ = (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1 - (∑ c, gs c x)⁻¹ • ∑ c, gs c x • x.1 := by congr
+          _ = (∑ c, gs c x)⁻¹ • ∑ c, gs c x • (c.1 - x) := by
+            simp_rw [smul_sub, Finset.sum_sub_distrib, smul_sub]
+        ]
+      _ = (∑ c, gs c x)⁻¹ * ‖∑ c, gs c x • (c.1 - x)‖ := by
+        rw [norm_smul]
+        congr
+        simp
+        positivity
+      _ ≤ (∑ c, gs c x)⁻¹ * ∑ c, ‖gs c x • (c.1 - x)‖ := by grw [norm_sum_le]
+      _ = (∑ c, gs c x)⁻¹ * ∑ c, gs c x * ‖c.1 - x‖ := by
+        congr
+        ext
+        rw [norm_smul]
+        congr
+        simp [hgs_nonneg]
+      _ ≤ (∑ c, gs c x)⁻¹ * ∑ c, gs c x * (M.succ⁻¹ : ℝ) := by
+        gcongr with c
+        all_goals specialize hgs_nonneg c x
+        · positivity
+        · simp [gs] at hgs_nonneg
+          -- UwU
+          sorry
+      _ = (M.succ⁻¹ : ℝ) := by
+        rw [←Finset.sum_mul, ←mul_assoc, inv_mul_cancel₀ (by positivity)]
+        apply one_mul
     have ⟨⟨⟨z, _⟩, hz⟩, hz_fixPt⟩ : ∃ x, Function.IsFixedPt g' x := by
       apply exists_mem_convex_compact_finDim_isFixedPt ?_ ?_ ?_ ⟨g', ?_⟩
       · sorry
