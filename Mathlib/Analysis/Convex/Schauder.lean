@@ -22,15 +22,15 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     let s₀' : Set E₀ := {x | x.1 ∈ s'}
     have hs'E₀ : s' ⊆ E₀ :=
       (convexHull_subset_affineSpan (𝕜 := ℝ) (cs : Set E)).trans affineSpan_subset_span
-    -- have : Subtype.val '' s₀' = s' := by
-    --   simp [·''·, s₀', s']
-    --   exact hs'E₀
+    have hs₀'_s' : Subtype.val '' s₀' = s' := by
+      simp [·''·, s₀', s']
+      exact hs'E₀
     have hs's : s' ⊆ s := convexHull_min (by simp only [Set.Finite.coe_toFinset, hc, cs]) hcv
     let ι := Module.Basis.ofVectorSpaceIndex ℝ E₀
     let coord : E₀ →ₗ[ℝ] ι →₀ ℝ := (Module.Basis.ofVectorSpace ℝ E₀).1.1
     let g (x : E) : E := (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1
     have hgs_C (c : cs) : Continuous (gs c) := by
-        sorry
+      sorry
     have hgs_nonneg (c : cs) (x : E) : 0 ≤ gs c x := by
       sorry
     have hgs_sumpos (x : E) : 0 < ∑ c, gs c x := by
@@ -83,18 +83,22 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
         congr
         simp [hgs_nonneg]
       _ ≤ (∑ c, gs c x)⁻¹ * ∑ c, gs c x * (M.succ⁻¹ : ℝ) := by
-        gcongr with c
-        all_goals specialize hgs_nonneg c x
-        · positivity
-        · simp [gs] at hgs_nonneg
-          -- UwU
-          sorry
+        gcongr 2 with c
+        specialize hgs_nonneg c x
+        obtain hgs0 | hgs_pos := hgs_nonneg.eq_or_lt
+        · rw [←hgs0]; simp
+        · simp [gs] at hgs_pos
+          rw [←dist_eq_norm]
+          gcongr
+          convert (ite_ne_right_iff.1 hgs_pos.ne.symm).1
+          simp only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one]
       _ = (M.succ⁻¹ : ℝ) := by
         rw [←Finset.sum_mul, ←mul_assoc, inv_mul_cancel₀ (by positivity)]
         apply one_mul
     have ⟨⟨⟨z, _⟩, hz⟩, hz_fixPt⟩ : ∃ x, Function.IsFixedPt g' x := by
       apply exists_mem_convex_compact_finDim_isFixedPt ?_ ?_ ?_ ⟨g', ?_⟩
-      · sorry
+      ·
+        sorry
       · sorry
       · sorry
       · repeat apply Continuous.subtype_mk
