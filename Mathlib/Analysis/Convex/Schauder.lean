@@ -1,9 +1,6 @@
 import Mathlib.Analysis.Convex.GaugeRescale
 import Mathlib.Analysis.Convex.Intrinsic
-import Mathlib.Analysis.Normed.Module.Basic
-import Mathlib.Analysis.Normed.Group.Basic
 import Mathlib.Topology.Algebra.Module.Compact
-import Mathlib.Topology.Algebra.MulAction
 
 theorem NormedSpace.exists_mem_convex_compact_finDim_isFixedPt {E : Type*}
     [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
@@ -25,11 +22,9 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     have hs'E₀ : s' ⊆ E₀ :=
       (convexHull_subset_affineSpan (𝕜 := ℝ) (cs : Set E)).trans affineSpan_subset_span
     have hs₀'_s' : Subtype.val '' s₀' = s' := by
-      simp [·''·, s₀', s']
-      exact hs'E₀
+      simpa only [Set.image, Set.mem_preimage, Subtype.exists, exists_and_left, exists_prop,
+        exists_eq_right_right, Set.sep_eq_self_iff_mem_true, s₀', s']
     have hs's : s' ⊆ s := convexHull_min (by simp only [Set.Finite.coe_toFinset, hc, cs]) hcv
-    let ι := Module.Basis.ofVectorSpaceIndex ℝ E₀
-    let coord : E₀ →ₗ[ℝ] ι →₀ ℝ := (Module.Basis.ofVectorSpace ℝ E₀).1.1
     let g (x : E) : E := (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1
     have hgs_cont (c : cs) : Continuous (gs c) := by
       refine Continuous.if_le ?_ ?_ ?_ ?_ fun _ hx ↦ by rw [hx, sub_self]
@@ -37,10 +32,8 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     have hgs_nonneg (c : cs) (x : E) : 0 ≤ gs c x := iteInduction sub_nonneg_of_le fun _ ↦ by rfl
     have hgs_sumpos (x : s) : 0 < ∑ c, gs c x := by
       have ⟨c₀, b, ⟨hc₀, hb⟩, hxb⟩ := Set.mem_iUnion.1 ((h M).2 x.2)
-      simp at hb
-      rw [←hb] at hxb
-      simp at hxb
-      rw [dist_comm] at hxb
+      simp only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one] at hb
+      rw [←hb, Metric.mem_ball, dist_comm] at hxb
       apply Finset.sum_pos' fun c _ ↦ hgs_nonneg c x
       use ⟨c₀, by simpa [cs]⟩
       simpa [gs, hxb.le]
@@ -76,7 +69,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
       _ = (∑ c, gs c x)⁻¹ * ‖∑ c, gs c x • (c.1 - x)‖ := by
         rw [norm_smul]
         congr
-        simp
+        simp only [Finset.univ_eq_attach, norm_inv, Real.norm_eq_abs, inv_inj, abs_eq_self]
         positivity
       _ ≤ (∑ c, gs c x)⁻¹ * ∑ c, ‖gs c x • (c.1 - x)‖ := by grw [norm_sum_le]
       _ = (∑ c, gs c x)⁻¹ * ∑ c, gs c x * ‖c.1 - x‖ := by
@@ -112,23 +105,21 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
         simp [cs]
       · rw [Subtype.preimage_coe_nonempty, Set.inter_eq_self_of_subset_right hs'E₀,
           convexHull_nonempty_iff]
-        simp [cs, Set.Nonempty]
+        simp only [Set.Nonempty, Set.Finite.coe_toFinset, cs]
         have := hn.mono (h M).2
-        simp at this
+        simp only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Set.nonempty_iUnion,
+          Metric.nonempty_ball, inv_pos, exists_prop, exists_and_right] at this
         exact this.1
       · repeat apply Continuous.subtype_mk
         change Continuous (g ∘ Subtype.val ∘ f ∘ fun y : s₀' ↦ ⟨y.1.1, hs's y.2⟩)
         refine continuous_finset_sum _ ?_ |>.comp ?_ |>.comp f.2 |>.comp ?_ |>.inv₀ ?_ |>.smul ?_
-        · fun_prop
-        · fun_prop
-        · fun_prop
-        · intro ⟨x, hx⟩
-          simp only [Set.mem_preimage, s₀'] at hx
-          simp only [Finset.univ_eq_attach, ContinuousMap.toFun_eq_coe, Function.comp_apply, ne_eq]
-          positivity [hgs_sumpos <| f ⟨x, hs's hx⟩]
-        · fun_prop
+        all_goals try fun_prop
+        intro ⟨x, hx⟩
+        simp only [Set.mem_preimage, s₀'] at hx
+        simp only [Finset.univ_eq_attach, ContinuousMap.toFun_eq_coe, Function.comp_apply, ne_eq]
+        positivity [hgs_sumpos <| f ⟨x, hs's hx⟩]
     use ⟨z, hs's <| Set.mem_setOf_eq ▸ hz⟩
-    simp [Function.IsFixedPt, g'] at hz_fixPt
+    simp only [Function.IsFixedPt, Subtype.mk.injEq, g'] at hz_fixPt
     conv => arg 1; arg 2; arg 1; rw [←hz_fixPt]
     rw [dist_comm]
     exact hg_tends (f ⟨z, hs's <| Set.mem_setOf_eq ▸ hz⟩)
@@ -164,7 +155,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     let M₀ := ⌈3/ε⌉₊
     have ⟨N, hN⟩ := hfzj_z₀ M₀
     use N; intro n hn
-    apply hball; simp
+    apply hball; simp only [Function.comp_apply, Metric.mem_ball]
     calc
       _ < 3 / (M₀.succ : ℝ) := hN n hn
       _ < 3 / M₀ := div_lt_div_of_pos_left (by norm_num) (by positivity) (by simp)
@@ -176,7 +167,6 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
   have hlim_fz₀ : Filter.atTop.Tendsto (f ∘ z ∘ j) (nhds (f z₀)) :=
     (f.2.tendsto z₀).comp (tendsto_subtype_rng.2 hlim)
   use z₀, tendsto_nhds_unique hlim_fz₀ hlim_z₀
-
 
 
 -- theorem convexHull_homeo_closedBall {E : Type*}
