@@ -8,7 +8,7 @@ theorem NormedSpace.exists_mem_convex_compact_finDim_isFixedPt {E : Type*}
     ∃ x, Function.IsFixedPt f x := sorry
 
 theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
-    [NormedField E] [NormedSpace ℝ E] [CompleteSpace E]
+    [NormedField E] [NormedSpace ℝ E]
     {s : Set E} (hcv : Convex ℝ s) (hcm : IsCompact s) (hn : s.Nonempty) (f : C(s, s)) :
     ∃ x, Function.IsFixedPt f x := by
   choose ci hc h using fun M : ℕ ↦ @finite_cover_balls_of_compact _ _ _ hcm M.succ⁻¹ (by positivity)
@@ -20,7 +20,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     let E₀ := Submodule.span ℝ (cs : Set E)
     let s₀' : Set E₀ := Subtype.val ⁻¹' s'
     have hs'E₀ : s' ⊆ E₀ :=
-      (convexHull_subset_affineSpan (𝕜 := ℝ) (cs : Set E)).trans affineSpan_subset_span
+      convexHull_subset_affineSpan (cs : Set E) |>.trans affineSpan_subset_span
     have hs₀'_s' : Subtype.val '' s₀' = s' := by
       simpa only [Set.image, Set.mem_preimage, Subtype.exists, exists_and_left, exists_prop,
         exists_eq_right_right, Set.sep_eq_self_iff_mem_true, s₀', s']
@@ -151,11 +151,11 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
   have hlim_z₀ : Filter.atTop.Tendsto (f ∘ z ∘ j) (nhds z₀) := by
     rw [tendsto_atTop_nhds]
     intro U hz₀U hUO
-    have ⟨ε, hε, hball⟩ := Metric.isOpen_iff.1 hUO z₀ hz₀U
+    have ⟨ε, hε, hb⟩ := Metric.isOpen_iff.1 hUO z₀ hz₀U
     let M₀ := ⌈3/ε⌉₊
     have ⟨N, hN⟩ := hfzj_z₀ M₀
     use N; intro n hn
-    apply hball; simp only [Function.comp_apply, Metric.mem_ball]
+    apply hb; simp only [Function.comp_apply, Metric.mem_ball]
     calc
       _ < 3 / (M₀.succ : ℝ) := hN n hn
       _ < 3 / M₀ := div_lt_div_of_pos_left (by norm_num) (by positivity) (by simp)
@@ -165,7 +165,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
         · positivity
         · assumption
   have hlim_fz₀ : Filter.atTop.Tendsto (f ∘ z ∘ j) (nhds (f z₀)) :=
-    (f.2.tendsto z₀).comp (tendsto_subtype_rng.2 hlim)
+    f.2.tendsto z₀ |>.comp <| tendsto_subtype_rng.2 hlim
   use z₀, tendsto_nhds_unique hlim_fz₀ hlim_z₀
 
 
