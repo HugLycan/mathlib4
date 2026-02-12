@@ -170,8 +170,6 @@ theorem exists_mem_convex_compact_isFixedPt {E : Type*}
     f.2.tendsto z₀ |>.comp <| tendsto_subtype_rng.2 hlim
   use z₀, tendsto_nhds_unique hlim_fz₀ hlim_z₀
 
-variable {E : Type*} [NormedField E] (B : Set E) (f : E → E)
-
 theorem exists_isFixedPt_of_bounded_solutions_of_eq_smul {E : Type*}
     [NormedField E] [NormedSpace ℝ E] [CompleteSpace E]
     (f : E →ₗ[ℝ] E) (hfc : Continuous f) (hfk : IsCompactOperator f)
