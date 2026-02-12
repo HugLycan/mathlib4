@@ -1,17 +1,19 @@
 import Mathlib.Analysis.Convex.GaugeRescale
 import Mathlib.Analysis.Convex.Intrinsic
 import Mathlib.Topology.Algebra.Module.Compact
+import Mathlib.Analysis.Normed.Operator.Compact
+import Mathlib.Analysis.LocallyConvex.AbsConvex
 
-theorem NormedSpace.exists_mem_convex_compact_finDim_isFixedPt {E : Type*}
+theorem exists_mem_convex_compact_finDim_isFixedPt {E : Type*}
     [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
     {s : Set E} (hcv : Convex ℝ s) (hcm : IsCompact s) (hn : s.Nonempty) (f : C(s, s)) :
     ∃ x, Function.IsFixedPt f x := sorry
 
-theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
+theorem exists_mem_convex_compact_isFixedPt {E : Type*}
     [NormedField E] [NormedSpace ℝ E]
-    {s : Set E} (hcv : Convex ℝ s) (hcm : IsCompact s) (hn : s.Nonempty) (f : C(s, s)) :
+    {s : Set E} (hsv : Convex ℝ s) (hsk : IsCompact s) (hsn : s.Nonempty) (f : C(s, s)) :
     ∃ x, Function.IsFixedPt f x := by
-  choose ci hc h using fun M : ℕ ↦ @finite_cover_balls_of_compact _ _ _ hcm M.succ⁻¹ (by positivity)
+  choose ci hc h using fun M : ℕ ↦ @finite_cover_balls_of_compact _ _ _ hsk M.succ⁻¹ (by positivity)
   have hz (M : ℕ) : ∃ z : s, dist (f z) z ≤ (M.succ⁻¹ : ℝ) := by
     let cs := (h M).1.toFinset
     let gs (c : cs) (x : E) : ℝ :=
@@ -24,7 +26,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     have hs₀'_s' : Subtype.val '' s₀' = s' := by
       simpa only [Set.image, Set.mem_preimage, Subtype.exists, exists_and_left, exists_prop,
         exists_eq_right_right, Set.sep_eq_self_iff_mem_true, s₀', s']
-    have hs's : s' ⊆ s := convexHull_min (by simp only [Set.Finite.coe_toFinset, hc, cs]) hcv
+    have hs's : s' ⊆ s := convexHull_min (by simp only [Set.Finite.coe_toFinset, hc, cs]) hsv
     let g (x : E) : E := (∑ c, gs c x)⁻¹ • ∑ c, gs c x • c.1
     have hgs_cont (c : cs) : Continuous (gs c) := by
       refine Continuous.if_le ?_ ?_ ?_ ?_ fun _ hx ↦ by rw [hx, sub_self]
@@ -106,7 +108,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
       · rw [Subtype.preimage_coe_nonempty, Set.inter_eq_self_of_subset_right hs'E₀,
           convexHull_nonempty_iff]
         simp only [Set.Nonempty, Set.Finite.coe_toFinset, cs]
-        have := hn.mono (h M).2
+        have := hsn.mono (h M).2
         simp only [Nat.succ_eq_add_one, Nat.cast_add, Nat.cast_one, Set.nonempty_iUnion,
           Metric.nonempty_ball, inv_pos, exists_prop, exists_and_right] at this
         exact this.1
@@ -124,7 +126,7 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     rw [dist_comm]
     exact hg_tends (f ⟨z, hs's <| Set.mem_setOf_eq ▸ hz⟩)
   choose z hfz_z using hz
-  have ⟨z0, hz0, j, hj, hlim⟩ := hcm.tendsto_subseq fun M ↦ (z M).2
+  have ⟨z0, hz0, j, hj, hlim⟩ := hsk.tendsto_subseq fun M ↦ (z M).2
   let z₀ : s := ⟨z0, hz0⟩
   have hzj_z₀ (M : ℕ) : ∃ N, ∀ (n : ℕ), N ≤ n → dist (z (j n)) z₀ < (M.succ⁻¹ : ℝ) := by
     conv in dist _ _ < _ => rw [←Metric.mem_ball]
@@ -168,74 +170,97 @@ theorem NormedSpace.exists_mem_convex_compact_isFixedPt {E : Type*}
     f.2.tendsto z₀ |>.comp <| tendsto_subtype_rng.2 hlim
   use z₀, tendsto_nhds_unique hlim_fz₀ hlim_z₀
 
+variable {E : Type*} [NormedField E] (B : Set E) (f : E → E)
 
--- theorem convexHull_homeo_closedBall {E : Type*}
---     [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
---     (s : Set E) (hcv : Convex ℝ s) (hcm : IsCompact s)
---     (hin : (interior s).Nonempty) :
---     Nonempty (s ≃ₜ Metric.closedBall (0 : E) 1) := by
---   have ⟨f, _, hf, _⟩
---     := exists_homeomorph_image_interior_closure_frontier_eq_unitBall hcv hin hcm.isBounded
---   rw [closure_eq_iff_isClosed.2 hcm.isClosed] at hf
---   rw [←hf]
---   exact ⟨f.image s⟩
-
--- theorem convex_compact_homeo_unitCube {E : Type*}
---     [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
---     (s : Set E) (hcv : Convex ℝ s) (hcm : IsCompact s) (hn : s.Nonempty)
---     : ∃ k, Nonempty (s ≃ₜ Set.Icc (0 : Fin k → ℝ) 1) := by
---   sorry
-
--- def unitCube n := Set.Icc (0 : Fin n → ℝ) 1
-
--- theorem exists_mem_unitCube_isFixedPt {n : ℕ} (f : C(@unitCube n, @unitCube n))
---     : ∃ x, Function.IsFixedPt f x := by
---   sorry
-
--- theorem exists_mem_convex_compact_isFixedPt {E : Type*}
---     [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
---     (s : Set E) (hcv : Convex ℝ s) (hcm : IsCompact s) (hn : Set.Nonempty s)
---     (f : C(s, s))
---     : ∃ x, Function.IsFixedPt f x := by
---   intro s hcv hcm hn f
---   have ⟨k, ⟨e⟩⟩ := convex_compact_homeo_unitCube s hcv hcm hn
---   let g := (toContinuousMap e).comp (f.comp (toContinuousMap e.symm))
---   have ⟨y, hy⟩ := @exists_mem_unitCube_isFixedPt k g
---   use toContinuousMap e.symm y
---   exact EquivLike.inv_apply_eq.mp hy
-
--- def HomotopyGroup.mulEquiv_of_homotopy {N X Y : Type*}
---     [Nonempty N] [DecidableEq N] [TopologicalSpace X] [TopologicalSpace Y]
---     (H : ContinuousMap.HomotopyEquiv X Y) (x : X) (y : Y) (hH₁ : H x = y) (hH₂ : H.2 y = x) :
---     HomotopyGroup N X x ≃* HomotopyGroup N Y y where
---   toFun := .map (fun p ↦ ⟨
---     H.1.comp p.1, by
---       intro q hq
---       simp only [ContinuousMap.comp_apply, p.2 q hq, hH₁]
---     ⟩) <| by
---       intros
---       apply ContinuousMap.HomotopicRel.comp_continuousMap
---       assumption
---   invFun := .map (fun p ↦ ⟨
---     H.2.comp p.1, by
---       intro q hq
---       simp only [ContinuousMap.comp_apply, p.2 q hq, hH₂]
---     ⟩) <| by
---       intros
---       apply ContinuousMap.HomotopicRel.comp_continuousMap
---       assumption
---   map_mul' := by
---     apply Quotient.ind₂
---     intro p₁ p₂
---     let i := Classical.arbitrary N
---     have hx := @HomotopyGroup.mul_spec N _ _ x _ _ i
---     have hy := @HomotopyGroup.mul_spec N _ _ y _ _ i
---     simp only at hx hy
---     rw [hx]
---     simp only [Quotient.map_mk]
---     rw [hy, Quotient.eq]
---     constructor
---     sorry
-
---   left_inv := sorry
---   right_inv := sorry
+theorem exists_isFixedPt_of_bounded_solutions_of_eq_smul {E : Type*}
+    [NormedField E] [NormedSpace ℝ E] [CompleteSpace E]
+    (f : E →ₗ[ℝ] E) (hfc : Continuous f) (hfk : IsCompactOperator f)
+    (hbs : Bornology.IsBounded {x | ∃ t ∈ Set.Icc (0 : ℝ) 1, x = t • f x}) :
+    ∃ x, Function.IsFixedPt f x := by
+  classical
+  have ⟨M, hM0, hM⟩ := hbs.exists_pos_norm_lt
+  let B : Set E := Metric.closedBall 0 M
+  let p (x : E) : E := if x ∈ B then x else (M / ‖x‖) • x
+  have hpc : Continuous p := by
+    apply continuous_if
+    · intro x hx
+      simp only [Metric.mem_closedBall, dist_zero_right, B] at hx
+      rw [frontier_le_subset_eq continuous_norm continuous_const hx, div_self hM0.ne', one_smul]
+    · apply continuousOn_id
+    · refine ContinuousOn.smul ?_ continuousOn_id
+      apply ContinuousOn.div₀ continuousOn_const (ContinuousOn.norm continuousOn_id)
+      simp only [id_eq, ne_eq, norm_eq_zero]
+      intro x hx
+      contrapose hx
+      rw [hx, ←B.compl_def, closure_compl, Set.mem_compl_iff, not_not,
+        interior_closedBall 0 hM0.ne']
+      exact Metric.mem_ball_self hM0.lt
+  let f' : E → E := p ∘ f
+  have hf'c : Continuous f' := hpc.comp hfc
+  let K : Set E := p '' closure (f '' B)
+  have hKk : IsCompact K :=
+    hfk.isCompact_closure_image_of_bounded Metric.isBounded_closedBall |>.image hpc
+  let C : Set E := closedAbsConvexHull ℝ K
+  have hf'CC : Set.MapsTo f' C C := by
+    have hBav : AbsConvex ℝ B := ⟨balanced_closedBall_zero, convex_closedBall _ _⟩
+    have hKB : K ⊆ B := by
+      intro x hx
+      have ⟨y, _, hy⟩ := Set.mem_image p _ x |>.1 hx
+      have hpM : ‖p y‖ ≤ M := by
+        unfold p
+        by_cases h : y ∈ B
+        · simp only [h, ↓reduceIte]
+          simp only [Metric.mem_closedBall, dist_zero_right, B] at h
+          assumption
+        · simp only [h, ↓reduceIte, norm_smul, norm_div, Real.norm_eq_abs, abs_norm]
+          rw [div_mul_cancel₀]
+          · grind
+          · simp [B] at h
+            linarith
+      rw [hy] at hpM
+      rw [Metric.mem_closedBall, dist_zero_right]
+      exact hpM
+    intro x hx
+    apply subset_closedAbsConvexHull
+    apply Set.image_mono subset_closure
+    repeat apply Set.mem_image_of_mem
+    exact closedAbsConvexHull_min hKB hBav Metric.isClosed_closedBall hx
+  let f'' : C(C, C) := ⟨hf'CC.restrict, by
+    simp only [Set.MapsTo.restrict, f']
+    apply hpc.comp hfc |>.subtype_map
+  ⟩
+  have ⟨z₀, hz₀⟩ := exists_mem_convex_compact_isFixedPt ?_ ?_ ?_ f''
+  · simp only [Function.IsFixedPt, ContinuousMap.coe_mk, f''] at hz₀
+    rw [Subtype.ext_iff, hf'CC.val_restrict_apply z₀] at hz₀
+    simp only [Metric.mem_closedBall, dist_zero_right, Function.comp_apply, f', p, B] at hz₀
+    use z₀
+    by_cases h : ‖f z₀‖ ≤ M
+    · simp only [h] at hz₀
+      exact hz₀
+    · absurd le_refl M; push_neg
+      calc
+        M = ‖(M / ‖f z₀‖) • f z₀‖ := by
+          simp only [norm_smul, norm_div, Real.norm_eq_abs, abs_norm]
+          symm
+          push_neg at h
+          rw [div_mul_cancel₀ |M|, abs_eq_self]
+          · exact hM0.le
+          · linarith
+        _ = ‖z₀.1‖ := by
+          simp only [h] at hz₀
+          congr
+        _ < M := by
+          obtain hfz₀pos | hfz₀0 := norm_nonneg (f z₀) |>.lt_or_eq'
+          · simp only [Set.mem_Icc, Set.mem_setOf_eq, forall_exists_index, and_imp] at hM
+            simp only [h] at hz₀
+            apply hM z₀ (M / ‖f z₀‖)
+            · positivity
+            · push_neg at h
+              rw [div_le_one hfz₀pos]
+              exact h.le
+            exact hz₀.symm
+          · linarith
+  · exact absConvex_convexClosedHull.2
+  · exact isCompact_closedAbsConvexHull_of_totallyBounded hKk.totallyBounded
+  · refine Set.Nonempty.image f ?_ |>.closure |>.image p |>.mono subset_closedAbsConvexHull
+    use 0, Metric.mem_closedBall_self hM0.le
