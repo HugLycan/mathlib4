@@ -128,13 +128,11 @@ structure PositivityLemma where
   - the index of the argument of the conclusion to which the premise refers
   - the strictness kind required of that argument. -/
   premises : Array (Nat × StrictnessKind)
-  /-- The given priority of the lemma, for example as `@[positivity high]`. -/
+  /-- The given priority of the lemma, for example as `@[positivity_lemma high]`. -/
   prio : Nat
   /-- The strictness kind concluded by the lemma. -/
   kind : StrictnessKind
   deriving Inhabited
-
--- TODO: arguments
 
 /-- A collection of `positivity` lemmas, to be stored in the environment extension. -/
 abbrev PositivityLemmas : Type :=
@@ -142,7 +140,7 @@ abbrev PositivityLemmas : Type :=
 
 /-- Return `true` if the priority of `a` is less than or equal to the priority of `b`. -/
 def PositivityLemma.prioLE (a b : PositivityLemma) : Bool :=
-  (compare a.prio b.prio).isLE --TODO
+  (compare a.prio b.prio).isLE
 
 /-- Insert a positivity lemma in a collection of lemmas. -/
 def addPositivityLemmaEntry (m : PositivityLemmas) (l : PositivityLemma) : PositivityLemmas :=
@@ -568,52 +566,82 @@ def orElse {pα?} {e : Q($α)} (t₁ : Strictness zα e pα?) (t₂ : MetaM (Str
     | .nonnegative p₂ => pure (.positive q(lt_of_le_of_ne' $p₂ $p₁))
     | _ => pure (.nonzero p₁)
 
+/-- Build a proof of `goalType` using `lem`, filling its positivity premises with `prePfs`. -/
+def mkProofByPositivityLemma (lem : PositivityLemma) (goalType : Q(Prop))
+    (prePfs : Array Expr) : MetaM Expr := do
+  let goal ← mkFreshExprMVar goalType
+  let subgoals ← goal.mvarId!.apply (← mkConstWithFreshMVarLevels lem.declName)
+  unless subgoals.length == prePfs.size do
+    throwError "unexpected number of subgoals when applying {lem.declName}: \
+      expected {prePfs.size}, got {subgoals.length}"
+  for subgoal in subgoals, prePf in prePfs do
+    let target ← subgoal.getType
+    subgoal.assign (← mkExpectedTypeHint prePf target)
+  let pf ← instantiateMVars goal
+  if pf.hasMVar then
+    throwError "failed to instantiate all implicit arguments of {lem.declName}"
+  return pf
+
+/-- Turn a proof produced by a registered positivity lemma into a `Strictness` result. -/
+def StrictnessKind.toResult (kind : StrictnessKind) (pα? : Option Q(PartialOrder $α))
+    (e : Q($α)) (pf : Expr) : MetaM (Strictness zα e pα?) := do
+  match kind, pα? with
+  | .positive, some pα => return .positive (pα := pα) pf
+  | .positive, none => return .none
+  | .nonnegative, some pα => return .nonnegative (pα := pα) pf
+  | .nonnegative, none => return .none
+  | .nonzero, _ => return .nonzero pf
+
+/-- Try to use one registered positivity lemma to prove the strictness of `e`. -/
 def applyPositivityLemma (pα? : Option Q(PartialOrder $α)) (e : Q($α))
     (lem : PositivityLemma) (prePfs : Array Expr) :
     MetaM (Strictness zα e pα?) := do
-  let pf ← mkAppM lem.declName prePfs
-  match lem.kind with
-  | .positive =>
-    let some _ := pα? | pure .none
-    return .positive pf
-  | .nonnegative =>
-    let some _ := pα? | pure .none
-    return .nonnegative pf
-  | .nonzero => return .nonzero pf
+  let goalType? : Option Q(Prop) :=
+    match lem.kind, pα? with
+    | .positive, some _ => some q(0 < $e)
+    | .nonnegative, some _ => some q(0 ≤ $e)
+    | .nonzero, _ => some q($e ≠ 0)
+    | .positive, none => none
+    | .nonnegative, none => none
+  let some goalType := goalType? | return .none
+  let pf ← mkProofByPositivityLemma lem goalType prePfs
+  lem.kind.toResult zα pα? e pf
 
 end Meta.Positivity
 namespace Meta.Positivity
 
 mutual
 
+/-- Try all registered positivity lemmas whose key matches the head and arity of `e`. -/
 partial def applyPositivityLemmas {u : Level} {α : Q(Type u)} (zα : Q(Zero $α))
-    (pα? : Option Q(PartialOrder «$α»)) (e : Q(«$α»)):
+    (pα? : Option Q(PartialOrder «$α»)) (e : Q(«$α»)) :
     MetaM (Strictness zα e pα?) := do
   let mut result := .none
   let some (head, args) := getAppFnArgs e | return .none
   let key := { head, arity := args.size }
   let some lems := (positivityLemmaExt.getState (← getEnv)).get? key | return .none
+  let provePremise (i : Nat) (kind : StrictnessKind) : MetaM Expr := do
+    let some arg := args[i]? | throwError "argument index out of bounds"
+    let ⟨_, β, arg⟩ ← inferTypeQ' arg
+    let zβ ← synthInstanceQ q(Zero $β)
+    let pβ? ← try? <| synthInstanceQ q(PartialOrder $β)
+    assumeInstancesCommute
+    let r ← core (zα := zβ) pβ? arg
+    match kind with
+    | .positive =>
+        let some _ := pβ? | throwError "no PartialOrder instance"
+        let some pf := r.toPositive | throwError "failed to prove positivity"
+        return pf
+    | .nonnegative =>
+        let some _ := pβ? | throwError "no PartialOrder instance"
+        let some pf := r.toNonneg | throwError "failed to prove nonnegativity"
+        return pf
+    | .nonzero =>
+        let some pf := r.toNonzero | throwError "failed to prove nonzeroness"
+        return pf
   for lem in lems do
     try
-      let prePfs ← lem.premises.mapM fun (i, kind) => do
-        let some arg := args[i]? | throwError "argument index out of bounds"
-        let ⟨_, β, arg⟩ ← inferTypeQ' arg
-        let zβ ← synthInstanceQ q(Zero $β)
-        let pβ? ← try? <| synthInstanceQ q(PartialOrder $β)
-        let r ← core (zα := zβ) pβ? arg
-        assumeInstancesCommute
-        match kind with
-        | .positive =>
-          let some _ := pβ? | throwError "no PartialOrder instance"
-          let some pf := r.toPositive | throwError "failed to prove positivity"
-          return pf
-        | .nonnegative =>
-          let some _ := pβ? | throwError "no PartialOrder instance"
-          let some pf := r.toNonneg | throwError "failed to prove nonnegativity"
-          return pf
-        | .nonzero =>
-          let some pf := r.toNonzero | throwError "failed to prove nonzeroness"
-          return pf
+      let prePfs ← lem.premises.mapM fun (i, kind) => provePremise i kind
       result ← orElse result <| applyPositivityLemma zα pα? e lem prePfs
     catch err =>
       trace[Tactic.positivity] "{e} failed: {err.toMessageData}"
