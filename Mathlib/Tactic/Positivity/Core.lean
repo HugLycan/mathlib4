@@ -658,14 +658,16 @@ partial def core {u : Level} {α : Q(Type u)} (zα : Q(Zero $α))
       result ← orElse result <| ext.eval zα pα? e
     catch err =>
       trace[Tactic.positivity] "{e} failed: {err.toMessageData}"
-  trace[Tactic.positivity] "current result from positivity extensions: {result.toString}"
+  trace[Tactic.positivity] "after positivity extensions: {e} => {result.toString}"
+  result ← orElse result <| applyPositivityLemmas zα pα? e
+  trace[Tactic.positivity] "after positivity lemmas: {e} => {result.toString}"
   match h : pα?, result with
   | some pα, res =>
-    trace[Tactic.positivity] "{α} has some {pα}"
+    trace[Tactic.positivity] "{α} has PartialOrder"
     let mut res ← orElse res <| normNumPositivity zα pα e
-    trace[Tactic.positivity] "current result from normNum: {res.toString}"
+    trace[Tactic.positivity] "after normNum: {e} => {res.toString}"
     res ← orElse res <| positivityCanon zα pα e
-    trace[Tactic.positivity] "current result from canonicity: {res.toString}"
+    trace[Tactic.positivity] "after canonicity: {e} => {res.toString}"
     if let .positive _ := res then
       trace[Tactic.positivity] "{e} => {res.toString}"
       return h ▸ res
@@ -682,7 +684,7 @@ partial def core {u : Level} {α : Q(Type u)} (zα : Q(Zero $α))
     for ldecl in ← getLCtx do
       if !ldecl.isImplementationDetail then
         result ← orElse result <| compareHypNonzero zα e ldecl
-    trace[Tactic.positivity] "{e} => {result.toString}"
+    trace[Tactic.positivity] "after comparing hyps: {e} => {result.toString}"
     throwNone (pure result)
 
 end
