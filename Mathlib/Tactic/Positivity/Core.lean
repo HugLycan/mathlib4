@@ -48,7 +48,7 @@ Example:
   ...
 ```
 -/
-syntax (name := positivityLemma) "positivity_lemma" (ppSpace prio)? : attr
+syntax (name := positivityLemma) "positivity_lemma " (ppSpace prio)? : attr
 syntax (name := positivity) "positivity " term,+ : attr
 
 lemma ne_of_ne_of_eq' {α : Sort*} {a c b : α} (hab : (a : α) ≠ c) (hbc : a = b) : b ≠ c := hbc ▸ hab
@@ -101,10 +101,11 @@ def mkPositivityExt (n : Name) : ImportM PositivityExt := do
   IO.ofExcept <| unsafe env.evalConstCheck PositivityExt opts ``PositivityExt n
 
 /-- The strictness kind of an inequality/disequality with `0`. -/
-inductive StrictnessKind where
-  | positive
-  | nonnegative
-  | nonzero
+inductive OrderRel : Type
+  | le : OrderRel -- `0 ≤ a`
+  | lt : OrderRel -- `0 < a`
+  | ne : OrderRel -- `a ≠ 0`
+  | ne' : OrderRel -- `0 ≠ a`
   deriving Inhabited
 
 /-- `PositivityKey` is the key used for looking up `positivity` lemmas. -/
@@ -127,12 +128,27 @@ structure PositivityLemma where
   /-- `premises` are the premises on which `positivity` will be recursively called. They store
   - the index of the argument of the conclusion to which the premise refers
   - the strictness kind required of that argument. -/
-  premises : Array (Nat × StrictnessKind)
+  premises : Array (Nat × OrderRel)
   /-- The given priority of the lemma, for example as `@[positivity_lemma high]`. -/
   prio : Nat
   /-- The strictness kind concluded by the lemma. -/
-  kind : StrictnessKind
+  kind : OrderRel
   deriving Inhabited
+
+/-- `positivity` state -/
+structure State where
+  /-- Simp's cache is used as the `positivity` tactic is designed to be used inside of simp and
+  utilize its cache. It holds successful goals. -/
+  cache : Simp.Cache := {}
+  /-- Cache storing failed goals such that they are not tried again. -/
+  failureCache : ExprSet := {}
+  /-- Count the number of steps and stop when maxSteps is reached. -/
+  numSteps := 0
+  /-- Log progress and failures messages that should be displayed to the user at the end. -/
+  msgLog : List String := []
+
+/-- Monad to run `positivity` tactic in. -/
+abbrev PositivityM := StateT Positivity.State MetaM
 
 /-- A collection of `positivity` lemmas, to be stored in the environment extension. -/
 abbrev PositivityLemmas : Type :=
@@ -187,27 +203,27 @@ def getAppFnArgs (e : Expr) : Option (Name × Array Expr) :=
 /-- If `e` is of the form `a [</≤/≠] 0` or `0 [</≤/≠] a`,
 return `(a, [positive/nonnegative/nonzero])`.
 Note: we assume that `e` does not have an `Expr.mdata` annotation. -/
-def getPositivity (e : Expr) : MetaM (Option (Expr × StrictnessKind)) := do
+def getPositivity (e : Expr) : MetaM (Option (Expr × OrderRel)) := do
   let isZero (e : Expr) : MetaM Bool := do
     let ⟨_, α, e⟩ ← inferTypeQ' e
     let _zα ← synthInstanceQ q(Zero $α)
     withReducible <| isDefEq e q(0 : $α)
   match e.getAppFn.constName?, e.getAppArgs with
   | some ``LT.lt, #[_, _, lhs, rhs] =>
-    if ← isZero lhs then return some (rhs, .positive)
+    if ← isZero lhs then return some (rhs, .lt)
     return none
   | some ``LE.le, #[_, _, lhs, rhs] =>
-    if ← isZero lhs then return some (rhs, .nonnegative)
+    if ← isZero lhs then return some (rhs, .le)
     return none
   | some ``GT.gt, #[_, _, lhs, rhs] =>
-    if ← isZero rhs then return some (lhs, .positive)
+    if ← isZero rhs then return some (lhs, .lt)
     return none
   | some ``GE.ge, #[_, _, lhs, rhs] =>
-    if ← isZero rhs then return some (lhs, .nonnegative)
+    if ← isZero rhs then return some (lhs, .le)
     return none
   | some ``Ne, #[_, lhs, rhs] =>
-    if ← isZero lhs then return some (rhs, .nonzero)
-    if ← isZero rhs then return some (lhs, .nonzero)
+    if ← isZero rhs then return some (lhs, .ne)
+    if ← isZero lhs then return some (rhs, .ne')
     return none
   | _, _ => return none
 
@@ -582,30 +598,32 @@ def mkProofByPositivityLemma (lem : PositivityLemma) (goalType : Q(Prop))
     throwError "failed to instantiate all implicit arguments of {lem.declName}"
   return pf
 
-/-- Turn a proof produced by a registered positivity lemma into a `Strictness` result. -/
-def StrictnessKind.toResult (kind : StrictnessKind) (pα? : Option Q(PartialOrder $α))
-    (e : Q($α)) (pf : Expr) : MetaM (Strictness zα e pα?) := do
-  match kind, pα? with
-  | .positive, some pα => return .positive (pα := pα) pf
-  | .positive, none => return .none
-  | .nonnegative, some pα => return .nonnegative (pα := pα) pf
-  | .nonnegative, none => return .none
-  | .nonzero, _ => return .nonzero pf
-
 /-- Try to use one registered positivity lemma to prove the strictness of `e`. -/
 def applyPositivityLemma (pα? : Option Q(PartialOrder $α)) (e : Q($α))
     (lem : PositivityLemma) (prePfs : Array Expr) :
     MetaM (Strictness zα e pα?) := do
-  let goalType? : Option Q(Prop) :=
-    match lem.kind, pα? with
-    | .positive, some _ => some q(0 < $e)
-    | .nonnegative, some _ => some q(0 ≤ $e)
-    | .nonzero, _ => some q($e ≠ 0)
-    | .positive, none => none
-    | .nonnegative, none => none
-  let some goalType := goalType? | return .none
-  let pf ← mkProofByPositivityLemma lem goalType prePfs
-  lem.kind.toResult zα pα? e pf
+  match (dependent := true) pα? with
+  | some _ => (do
+      match lem.kind with
+      | .lt =>
+        return .positive <|← mkProofByPositivityLemma lem q(0 < $e) prePfs
+      | .le =>
+        return .nonnegative <|← mkProofByPositivityLemma lem q(0 ≤ $e) prePfs
+      | .ne =>
+        return .nonzero <|← mkProofByPositivityLemma lem q($e ≠ 0) prePfs
+      | .ne' =>
+        let pf : Q(0 ≠ $e) ← mkProofByPositivityLemma lem q(0 ≠ $e) prePfs
+        return .nonzero q(Ne.symm $pf)
+    )
+  | none => (do
+      match lem.kind with
+      | .ne =>
+        return .nonzero <|← mkProofByPositivityLemma lem q($e ≠ 0) prePfs
+      | .ne' =>
+        let pf : Q(0 ≠ $e) ← mkProofByPositivityLemma lem q(0 ≠ $e) prePfs
+        return .nonzero q(Ne.symm $pf)
+      | .lt | .le => return .none
+    )
 
 end Meta.Positivity
 namespace Meta.Positivity
@@ -620,25 +638,35 @@ partial def applyPositivityLemmas {u : Level} {α : Q(Type u)} (zα : Q(Zero $α
   let some (head, args) := getAppFnArgs e | return .none
   let key := { head, arity := args.size }
   let some lems := (positivityLemmaExt.getState (← getEnv)).get? key | return .none
-  let provePremise (i : Nat) (kind : StrictnessKind) : MetaM Expr := do
+  let provePremise (i : Nat) (kind : OrderRel) : MetaM Expr := do
     let some arg := args[i]? | throwError "argument index out of bounds"
     let ⟨_, β, arg⟩ ← inferTypeQ' arg
     let zβ ← synthInstanceQ q(Zero $β)
-    let pβ? ← try? <| synthInstanceQ q(PartialOrder $β)
-    assumeInstancesCommute
-    let r ← core (zα := zβ) pβ? arg
     match kind with
-    | .positive =>
-        let some _ := pβ? | throwError "no PartialOrder instance"
-        let some pf := r.toPositive | throwError "failed to prove positivity"
-        return pf
-    | .nonnegative =>
-        let some _ := pβ? | throwError "no PartialOrder instance"
-        let some pf := r.toNonneg | throwError "failed to prove nonnegativity"
-        return pf
-    | .nonzero =>
-        let some pf := r.toNonzero | throwError "failed to prove nonzeroness"
-        return pf
+    | .lt =>
+      let pβ ← synthInstanceQ q(PartialOrder $β)
+      assumeInstancesCommute
+      let r ← core (zα := zβ) (some pβ) arg
+      let some pf := r.toPositive | throwError "failed to prove 0 < {e}"
+      return pf
+    | .le =>
+      let pβ ← synthInstanceQ q(PartialOrder $β)
+      assumeInstancesCommute
+      let r ← core (zα := zβ) (some pβ) arg
+      let some pf := r.toNonneg | throwError "failed to prove nonnegativity"
+      return pf
+    | .ne =>
+      let pβ? ← try? <| synthInstanceQ q(PartialOrder $β)
+      assumeInstancesCommute
+      let r ← core (zα := zβ) pβ? arg
+      let some pf := r.toNonzero | throwError "failed to prove nonzeroness"
+      return pf
+    | .ne' =>
+      let pβ? ← try? <| synthInstanceQ q(PartialOrder $β)
+      assumeInstancesCommute
+      let r ← core (zα := zβ) pβ? arg
+      let some pf := r.toNonzero | throwError "failed to prove nonzeroness"
+      return q(Ne.symm $pf)
   for lem in lems do
     try
       let prePfs ← lem.premises.mapM fun (i, kind) => provePremise i kind
@@ -689,11 +717,11 @@ partial def core {u : Level} {α : Q(Type u)} (zα : Q(Zero $α))
 
 end
 
-private inductive OrderRel : Type
-| le : OrderRel -- `0 ≤ a`
-| lt : OrderRel -- `0 < a`
-| ne : OrderRel -- `a ≠ 0`
-| ne' : OrderRel -- `0 ≠ a`
+-- inductive OrderRel : Type
+-- | le : OrderRel -- `0 ≤ a`
+-- | lt : OrderRel -- `0 < a`
+-- | ne : OrderRel -- `a ≠ 0`
+-- | ne' : OrderRel -- `0 ≠ a`
 
 end Meta.Positivity
 namespace Meta.Positivity

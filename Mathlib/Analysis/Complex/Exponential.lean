@@ -666,7 +666,6 @@ lemma exp_lt_two_add_div_two_sub {x : ℝ} (hx : 0 < x) (hx' : x < 2) :
   _ = exp (x / 2) ^ 2 := by grind [Real.exp_nat_mul (x / 2) 2]
   _ ≤ _ := by
     grw [Real.exp_bound' (x := x / 2) (by grind) (by grind) (n := 3) (by simp)]
-    apply Real.exp_nonneg
   _ < (2 + x) / (2 - x) := by
     rw [lt_div_iff₀ (by linarith), ← sub_pos]
     simp only [Finset.sum_range_succ]

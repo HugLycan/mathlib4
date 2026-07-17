@@ -25,6 +25,9 @@ axiom f_nonneg {x : α} : 0 ≤ x → 0 ≤ f x
 axiom f_ne_zero {x : α} : x ≠ 0 → f x ≠ 0
 
 @[positivity_lemma]
+axiom zero_ne_g {x : α} : 0 ≠ x → g x ≠ 0
+
+@[positivity_lemma]
 axiom g_pos {n : α} : 0 < n → 0 < g n
 
 @[positivity_lemma]
@@ -33,11 +36,23 @@ axiom m_pos {x y : α} : 0 < x → 0 < y → 0 < m x y
 @[positivity_lemma]
 axiom m_nonneg {x y : α} : 0 ≤ x → 0 ≤ y → 0 ≤ m x y
 
+set_option trace.Tactic.positivity true
+set_option trace.Tactic.positivity.failure true
+
 example : 0 < c := by positivity
 example {x : α} (hx : 0 < x) : 0 < f x := by positivity
 example {x : α} (hx : 0 ≤ x) : 0 ≤ f x := by positivity
 example {x : α} (hx : x ≠ 0) : f x ≠ 0 := by positivity
+example {x : α} (hx : x ≠ 0) : 0 ≠ f x := by positivity
+example {x : α} (hx : 0 ≠ x) : f x ≠ 0 := by positivity
+example {x : α} (hx : 0 ≠ x) : 0 ≠ f x := by positivity
 example {n : α} (hn : 0 < n) : 0 < g n := by positivity
+
+example {x : α} (hx : x ≠ 0) : g x ≠ 0 := by positivity
+example {x : α} (hx : x ≠ 0) : 0 ≠ g x := by positivity
+example {x : α} (hx : 0 ≠ x) : g x ≠ 0 := by positivity
+example {x : α} (hx : 0 ≠ x) : 0 ≠ g x := by positivity
+
 example {x y : α} (hx : 0 < x) (hy : 0 < y) : 0 < m x y := by positivity
 example {x y : α} (hx : 0 ≤ x) (hy : 0 ≤ y) : 0 ≤ m x y := by positivity
 
