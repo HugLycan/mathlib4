@@ -1,5 +1,8 @@
 import Mathlib.Tactic.Positivity.Core
 
+set_option trace.Tactic.positivity true
+set_option trace.Tactic.positivity.failure true
+
 axiom α : Type*
 axiom β : Type*
 variable [Zero α] [PartialOrder α] [Zero β] [PartialOrder β]
@@ -92,3 +95,25 @@ axiom f_pos' [Good α] {x : α} : 0 < x → 0 < f x
 example {x : α} (hx : 0 < x) : 0 < f x := by positivity
 
 end Premises
+
+namespace Cache
+
+@[positivity_lemma]
+axiom m_nonneg {x y : α} : 0 ≤ x → 0 ≤ m x x
+example {x : α} (hx : 0 ≤ x) : 0 ≤ m x x := by positivity
+
+attribute [positivity_lemma]
+  Int.add_nonneg
+  Int.add_pos_of_nonneg_of_pos
+  Int.add_pos_of_pos_of_nonneg
+
+example {x : ℤ} (hx : 0 ≤ x)
+    : 0 ≤ (((x + x) + (x + x)) + ((x + x) + (x + x))) + ((((x + x) + (x + x)) + ((x + x) + (x + x))))
+  := by positivity
+
+
+-- example {x : ℕ} (hx : 0 ≤ x) : 0 ≤ x + x + x + x + x + x := by positivity
+
+-- example {x : ℤ} (hx : 0 ≤ x) : 0 ≤ x + x + x + x + x + x + x + x := by positivity
+
+end Cache
