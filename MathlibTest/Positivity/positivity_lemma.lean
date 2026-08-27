@@ -2,6 +2,7 @@ import Mathlib.Tactic.Positivity.Core
 
 set_option trace.Tactic.positivity true
 set_option trace.Tactic.positivity.failure true
+set_option profiler true
 
 axiom α : Type*
 axiom β : Type*
@@ -111,9 +112,10 @@ example {x : ℤ} (hx : 0 ≤ x)
     : 0 ≤ (((x + x) + (x + x)) + ((x + x) + (x + x))) + ((((x + x) + (x + x)) + ((x + x) + (x + x))))
   := by positivity
 
-
--- example {x : ℕ} (hx : 0 ≤ x) : 0 ≤ x + x + x + x + x + x := by positivity
-
--- example {x : ℤ} (hx : 0 ≤ x) : 0 ≤ x + x + x + x + x + x + x + x := by positivity
+example {x : ℤ} (hx : 0 ≤ x) : 0 ≤ x + x + x + x + x + x + x + x := by positivity
 
 end Cache
+
+namespace FailureCache
+
+end FailureCache
