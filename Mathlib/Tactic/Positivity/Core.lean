@@ -48,8 +48,11 @@ Example:
   ...
 ```
 -/
-syntax (name := positivityLemma) "positivity_lemma " (ppSpace prio)? : attr
 syntax (name := positivity) "positivity " term,+ : attr
+
+/-- A theorem tagged with `@[positivity_lemma]` is used by `positivity` to prove that an
+expression is positive, nonnegative, or nonzero from corresponding facts about its arguments. -/
+syntax (name := positivityLemma) "positivity_lemma " (ppSpace prio)? : attr
 
 lemma ne_of_ne_of_eq' {α : Sort*} {a c b : α} (hab : (a : α) ≠ c) (hbc : a = b) : b ≠ c := hbc ▸ hab
 
@@ -131,6 +134,7 @@ inductive CachedResult where
   | nonnegative (pf : Expr)
   | nonzero (pf : Expr)
 
+/-- Gives a generic description of the cached `positivity` result. -/
 def CachedResult.toString : CachedResult → String
   | .positive _ => "positive"
   | .nonnegative _ => "nonnegative"
@@ -139,7 +143,6 @@ def CachedResult.toString : CachedResult → String
 /-- `positivity` state -/
 structure State where
   /-- Cache holding successful goals. -/
-
   cache : ExprMap CachedResult := {}
   /-- Cache storing failed goals such that they are not tried again. -/
   failureCache : ExprSet := {}
@@ -153,7 +156,7 @@ abbrev PositivityM := StateT Positivity.State MetaM
 def cacheFailure (e : Expr) : PositivityM Unit := do
   modify fun s => { s with failureCache := s.failureCache.insert e }
 
-/- todo: cache trace function -/
+/-- Gives a message describing all successful results in the `positivity` cache. -/
 def cacheInfo : PositivityM MessageData := do
   let ms := (← get).cache.toList.map fun r => m!"{r.1} => {r.2.toString}"
   return MessageData.joinSep ms "\n"
@@ -419,25 +422,6 @@ def throwNone {e pα?} (t : MetaM (Strictness zα e pα?)) : MetaM (Strictness z
   | .none => throwError "Strictness result was `{.ofConstName ``Strictness.none}`."
   | r => pure r
 
--- toDelete
--- variable {zα} in
--- /-- Converts a `PositivityM Strictness` which can return `.none`
--- into one which never returns `.none` but fails instead. -/
--- def throwNone' {e pα?} (t : PositivityM (Strictness zα e pα?))
---     : PositivityM (Strictness zα e pα?) := do
---   match ← t with
---   | .none => throwError "Strictness result was `{.ofConstName ``Strictness.none}`."
---   | r => pure r
-
--- variable {zα} in
--- /-- Converts a `PositivityM Strictness` which can return `.none`
--- into one which never returns `.none` but fails instead. -/
--- def throwNone'' {e pα?} (t : PositivityM (Strictness zα e pα?))
---     : ExceptT String PositivityM (Strictness zα e pα?) := do
---   match ← t with
---   | .none => pure <| Except.error "Strictness result was `{.ofConstName ``Strictness.none}`."
---   | r => pure r
-
 /-- Attempts to prove a `Strictness` result when `e` evaluates to a literal number. -/
 def normNumPositivity (pα : Q(PartialOrder $α)) (e : Q($α))
     : MetaM (Strictness zα e (some pα)) := catchNone do
@@ -686,6 +670,7 @@ def applyPositivityLemma (pα? : Option Q(PartialOrder $α)) (e : Q($α))
       | .lt | .le => return .none
     )
 
+/-- Try to retrieve a cached `positivity` result for `e`. -/
 def findCached? (pα? : Option Q(PartialOrder $α)) (e : Q($α)) :
     PositivityM (Option (Strictness zα e pα?)) := do
   let some cached := (← get).cache.get? e | return none
