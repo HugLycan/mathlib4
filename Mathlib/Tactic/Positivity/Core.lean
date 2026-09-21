@@ -628,7 +628,6 @@ def orElse {pα?} {e : Q($α)} (t₁ : Strictness zα e pα?) (t₂ : Positivity
     | .nonnegative p₂ => pure (.positive q(lt_of_le_of_ne' $p₂ $p₁))
     | _ => pure (.nonzero p₁)
 
-
 /-- Build a proof of `goalType` using `lem`, filling its positivity premises with `prePfs`. -/
 def mkProof (lem : PositivityLemma) (goalType : Q(Prop))
     (prePfs : Array Expr) : MetaM Expr := do
