@@ -631,6 +631,8 @@ def orElse {pα?} {e : Q($α)} (t₁ : Strictness zα e pα?) (t₂ : Positivity
 /-- Build a proof of `goalType` using `lem`, filling its positivity premises with `prePfs`. -/
 def mkProof (lem : PositivityLemma) (goalType : Q(Prop))
     (prePfs : Array Expr) : MetaM Expr := do
+  let mctx ← getMCtx
+  let mvars := (mctx.mvarCounter, mctx.lmvarCounter)
   let goal ← mkFreshExprMVar goalType
   let subgoals ← goal.mvarId!.apply <|← mkConstWithFreshMVarLevels lem.declName
   unless subgoals.length == prePfs.size do
@@ -640,8 +642,14 @@ def mkProof (lem : PositivityLemma) (goalType : Q(Prop))
     let target ← subgoal.getType
     subgoal.assign (← mkExpectedTypeHint prePf target)
   let pf ← instantiateMVars goal
-  if pf.hasMVar then
-    throwError "failed to instantiate all implicit arguments of {lem.declName}"
+  if pf.hasExprMVar then
+    let mctx ← getMCtx
+    if (← getMVars pf).any (fun m => (mctx.getDecl m).index ≥ mvars.1) then
+      throwError "failed to instantiate all implicit arguments of {lem.declName}"
+  if pf.hasLevelMVar then
+    let mctx ← getMCtx
+    if (collectLevelMVars {} pf).result.any (fun m => (mctx.getLevelDecl m).index ≥ mvars.2) then
+      throwError "failed to instantiate all implicit arguments of {lem.declName}"
   return pf
 
 /-- Try to use one registered positivity lemma to prove the strictness of `e`. -/
