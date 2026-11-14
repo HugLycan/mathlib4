@@ -391,7 +391,7 @@ meta def evalRpow : PositivityExt where eval {u α} _zα pα? e :=
   match u, α, e with
   | 0, ~q(ℝ), ~q($a ^ ($b : ℝ)) =>
     let ra ← core q(inferInstance) (some q(inferInstance)) a
-    return ← catchNone do
+    catchNone do
       assertInstancesCommute
       match ra with
       | .positive pa =>

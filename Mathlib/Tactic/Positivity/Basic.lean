@@ -151,7 +151,7 @@ such that `positivity` successfully recognises both `a` and `b`. -/
   assumeInstancesCommute
   let ⟨_f_eq⟩ ← withNewMCtxDepth <| assertDefEqQ q($f) q(HAdd.hAdd)
   let ra ← core zα pα a; let rb ← core zα pα b
-  return ← catchNone do
+  catchNone do
     match ra, rb with
     | .positive pa, .positive pb =>
       let _a ← synthInstanceQ q(AddLeftMono $α)
@@ -256,7 +256,7 @@ where `a` and `b` are integers. -/
   | 0, ~q(ℤ), ~q($a / $b) =>
     let ra ← core q(inferInstance) (some q(inferInstance)) a
     let rb ← core q(inferInstance) (some q(inferInstance)) b
-    return ← catchNone do
+    catchNone do
       assertInstancesCommute
       match ra, rb with
       | .positive (pa : Q(0 < $a)), .positive (pb : Q(0 < $b)) =>
