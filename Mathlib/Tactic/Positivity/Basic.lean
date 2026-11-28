@@ -230,6 +230,10 @@ such that there is a local hypothesis `b < a`, `b ≤ a`, `a ≠ b` or `b ≠ a`
           | _ => return .none
     return result
 
+alias ⟨_, neg_ne_zero_of_ne_zero⟩ := neg_ne_zero
+
+attribute [positivity_lemma] neg_ne_zero_of_ne_zero
+
 /-- The `positivity` extension which identifies expressions of the form `a * b`,
 such that `positivity` successfully recognises both `a` and `b`. -/
 @[positivity _ * _] def evalMul : PositivityExt where eval {u α} zα pα? e := do

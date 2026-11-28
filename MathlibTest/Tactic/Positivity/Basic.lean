@@ -192,6 +192,9 @@ example {a b : ℚ} (ha : a < b) : 0 < b - a := by positivity
 example {a b : ℚ} (ha : a < b) : 0 ≤ b - a := by positivity
 example {a b : ℚ} (ha : a < b) : 0 ≠ b - a := by positivity
 
+example {a : ℚ} (ha : a ≠ 0) : -a ≠ 0 := by positivity
+example {z : ℂ} (hz : z ≠ 0) : -z ≠ 0 := by positivity
+
 example {a b : ℚ} (ha : 0 < a) (hb : 0 < b) : 0 < a * b := by positivity
 example {a b : ℚ} (ha : 0 < a) (hb : 0 ≤ b) : 0 ≤ a * b := by positivity
 example {a b : ℚ} (ha : 0 ≤ a) (hb : 0 < b) : 0 ≤ a * b := by positivity
